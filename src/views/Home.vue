@@ -163,12 +163,14 @@ onMounted(() => {
             });
         }
     });
+    console.log("videoList", videoList)
     // // 关闭数据库链接
     // db.close();
 });
 
 const router = useRouter();
 const gotoVideoPage = (item: Video) => {
+    console.log("goto")
     router.push({
         path: `/video`,
         query: {
@@ -177,8 +179,6 @@ const gotoVideoPage = (item: Video) => {
             path: item.path
         }
     })
-    store.videoInfo.title = item.title
-    localStorage.setItem('videoInfo', JSON.stringify(store.videoInfo));
 }
 
 const Download = async () => {

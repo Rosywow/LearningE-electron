@@ -1,18 +1,18 @@
 <template>
     <div class="wrapper">
         <div class="container">
-            <router-link class="back" :style="{color: 'black'}" :to="{ name: 'Home' }">{{ "<" }}</router-link>
-            <video v-if="path" ref="videoRef" :src="path" class="video" controls
-                :style="{ width: '600px', height: '340px' }">
-            </video>
-            <div class="subs">
-                <div class="sub" v-for="(item, index) in subtitles" :key="index">
-                    <div :class="{ currentSub: index === currentindex}">
-                        <span :class="{Marked: item.mark == true }">{{ index + ". " + item.enSub }}</span>
-                        <div>{{ item.zhSub }}</div>
+            <router-link class="back" :style="{ color: 'black' }" :to="{ name: 'Home' }">{{ "<" }}</router-link>
+                    <video v-if="path" ref="videoRef" :src="path" class="video" controls
+                        :style="{ width: '600px', height: '340px' }">
+                    </video>
+                    <div class="subs">
+                        <div class="sub" ref="subRef" v-for="(item, index) in subtitles" :key="index">
+                            <div :class="{ currentSub: index === currentindex }">
+                                <span :class="{ Marked: item.mark == true }">{{ index + ". " + item.enSub }}</span>
+                                <div>{{ item.zhSub }}</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
         </div>
     </div>
 </template>
@@ -63,7 +63,7 @@
 </style>
 
 <script setup lang="ts">
-import { onMounted, ref, reactive, onUnmounted } from "vue";
+import { onMounted, ref, reactive, onUnmounted, watchEffect } from "vue";
 import { useRoute } from "vue-router";
 import { message } from 'ant-design-vue';
 import 'ant-design-vue/es/message/style/css';
@@ -74,6 +74,9 @@ const route = useRoute();
 let id = ref<any>()
 const path = ref<any>('');
 let title = ref<any>('')
+const subRef = ref<any>([])
+
+
 // 创建数据库链接
 let db = new sqlite3.Database('My.sqlite3', (err: Error | null) => {
     if (err) {
@@ -94,7 +97,26 @@ let subtitles = reactive<Subtitle[]>([])
 // 记录当前播放的那一条字幕
 const videoRef = ref<any>(null)
 let currentindex = ref(0)
-
+watchEffect(() => {
+    // console.log(subRef.value[currentindex.value])
+    const wrapper = document.getElementsByClassName('subs')[0]
+    if (subRef.value[currentindex.value]) {
+        // subRef.value[currentindex.value].scrollIntoView({
+        //     behavior: "smooth",
+        //     block: "nearest",
+        //     inline: "center"
+        // })
+        // window.scrollBy(0, -50) // 滚动距离再向上移动50px
+        const target = subRef.value[currentindex.value]
+        const rect = target.getBoundingClientRect()
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+        const targetTop = rect.top + scrollTop
+        const windowHeight = window.innerHeight
+        const distanceFromBottom = windowHeight - targetTop - rect.height // 目标元素距离窗口底部的距离
+        const targetDistanceFromBottom = distanceFromBottom + windowHeight * 0.8 // 距离窗口底部10%的距离
+        window.scrollTo({ top: windowHeight - targetDistanceFromBottom, behavior: "smooth" })
+    }
+})
 let timer: any = null
 // 更改播放状态
 const playAudio = () => {
@@ -164,6 +186,7 @@ onMounted(() => {
     id.value = route.query.id
     path.value = route.query.path
     title.value = route.query.title
+    console.log("视频id", id.value)
     // 查询文件是否存在
     fs.exists(path.value, (exists: boolean) => {
         if (exists) {
