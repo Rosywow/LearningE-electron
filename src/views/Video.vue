@@ -8,7 +8,7 @@
                     <div class="subs">
                         <div class="sub" ref="subRef" v-for="(item, index) in subtitles" :key="index">
                             <div :class="{ currentSub: index === currentindex }">
-                                <span :class="{ Marked: item.mark == true }">{{ index + ". " + item.enSub }}</span>
+                                <span :class="{ Marked: item.mark == true }">{{ index + "." + item.enSub }}</span>
                                 <div>{{ item.zhSub }}</div>
                             </div>
                         </div>
@@ -97,92 +97,8 @@ let subtitles = reactive<Subtitle[]>([])
 // 记录当前播放的那一条字幕
 const videoRef = ref<any>(null)
 let currentindex = ref(0)
-watchEffect(() => {
-    // console.log(subRef.value[currentindex.value])
-    const wrapper = document.getElementsByClassName('subs')[0]
-    if (subRef.value[currentindex.value]) {
-        // subRef.value[currentindex.value].scrollIntoView({
-        //     behavior: "smooth",
-        //     block: "nearest",
-        //     inline: "center"
-        // })
-        // window.scrollBy(0, -50) // 滚动距离再向上移动50px
-        const target = subRef.value[currentindex.value]
-        const rect = target.getBoundingClientRect()
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-        const targetTop = rect.top + scrollTop
-        const windowHeight = window.innerHeight
-        const distanceFromBottom = windowHeight - targetTop - rect.height // 目标元素距离窗口底部的距离
-        const targetDistanceFromBottom = distanceFromBottom + windowHeight * 0.8 // 距离窗口底部10%的距离
-        window.scrollTo({ top: windowHeight - targetDistanceFromBottom, behavior: "smooth" })
-    }
-})
-let timer: any = null
-// 更改播放状态
-const playAudio = () => {
-    console.log("playAudio")
-    //@ts-ignore
-    if (videoRef.value?.paused) {
-        videoRef.value?.play()
-    } else {
-        //  @ts-ignore
-        videoRef.value?.pause()
-    }
-}
-// 快捷键监听
-const Listener = () => {
-    window.addEventListener('keydown', e => {
-        // 如果用户按下的是空格键
-        if (e.code === "Space") {
-            playAudio()
-            e.preventDefault(); // 阻止默认行为
-        } else if (e.code === "ArrowLeft") {
-            //@ts-ignore
-            if (videoRef.value.currentTime > 5) {
-                //@ts-ignore
-                videoRef.value.currentTime -= 5
-            } else {
-                //@ts-ignore
-                videoRef.value.currentTime = 0
-            }
-            e.preventDefault(); // 阻止默认行为
-        } else if (e.code === "ArrowRight") {
-            //@ts-ignore
-            if (videoRef.value.currentTime + 5 < videoRef.value.duration) {
-                //@ts-ignore
-                videoRef.value.currentTime += 5
-            } else {
-                //@ts-ignore
-                videoRef.value.currentTime = videoRef.value.duration
-            }
-            e.preventDefault(); // 阻止默认行为
-        } else if (e.code === "Enter") {
-            e.preventDefault(); // 阻止默认行为
-            // 根据当前播放的字幕id，对mark取反
-            db.run(`UPDATE subtitles SET mark = NOT mark WHERE id = ${subtitles[currentindex.value].id}`, (err: Error | null) => {
-                if (err) {
-                    throw err;
-                }
-                subtitles[currentindex.value].mark = !subtitles[currentindex.value].mark
-            });
-        }
-    })
-}
-// 定时器更新当前播放的字幕
-const Timer = () => {
-    timer = setInterval(() => {
-        // 获取当前播放的时间
-        //  @ts-ignore
-        let currentTime = videoRef.value?.currentTime
-        // 遍历字幕，找到当前播放的字幕
-        for (var i = 0; i < subtitles.length - 1; i++) {
-            if (subtitles[i].start < currentTime && subtitles[i].start + subtitles[i].duration > currentTime) {
-                currentindex.value = i
-            }
-        }
-    }, 1000)
-}
-onMounted(() => {
+
+onMounted(async () => {
     id.value = route.query.id
     path.value = route.query.path
     title.value = route.query.title
@@ -196,33 +112,121 @@ onMounted(() => {
             message.error("文件不存在")
         }
     })
-    // 根据视频id，升序获取相应的字幕
-    db.all(`SELECT * FROM subtitles WHERE video_id = ${id.value} ORDER BY id ASC`, (err: Error | null, rows: any) => {
-        if (err) {
-            throw err;
-        }
-        rows.forEach((row: any) => {
-            subtitles.push({
-                id: row.id,
-                enSub: row.enSub,
-                zhSub: row.zhSub,
-                start: row.start,
-                duration: row.duration,
-                mark: row.mark
-            })
+    // 将 db.all 包装为返回 Promise 的函数, 以便使用 await
+    const getSubtitles = () => {
+        return new Promise<void>((resolve, reject) => {
+            db.all(`SELECT * FROM subtitles WHERE video_id = ${id.value} ORDER BY id ASC`, (err: Error | null, rows: any) => {
+                if (err) {
+                    reject(err);
+                }
+                rows.forEach((row: any) => {
+                    subtitles.push({
+                        id: row.id,
+                        enSub: row.enSub,
+                        zhSub: row.zhSub,
+                        start: row.start,
+                        duration: row.duration,
+                        mark: row.mark
+                    })
+                });
+                resolve();
+            });
         });
-    });
-    console.log(subtitles)
-    Timer()
-    Listener()
-})
-onUnmounted(() => {
-    clearInterval(timer)
-    window.removeEventListener('keydown', e => {
-        e.preventDefault(); // 阻止默认行为
-        if (e.key === " ") {
-            playAudio()
-        }
+    };
+
+    // 等待数据库操作完成
+    await getSubtitles();
+    // 按照字幕的start时间，升序排序
+    subtitles.sort((a: any, b: any) => {
+        return a.start - b.start
     })
+    // 快捷键设置
+    window.addEventListener('keydown', Quick)
+})
+
+// 令当前播放的字幕始终出现在页面中
+watchEffect(() => {
+    if (subRef.value[currentindex.value]) {
+        const target = subRef.value[currentindex.value]
+        const rect = target.getBoundingClientRect()
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+        const targetTop = rect.top + scrollTop
+        const windowHeight = window.innerHeight
+        const distanceFromBottom = windowHeight - targetTop - rect.height // 目标元素距离窗口底部的距离
+        const targetDistanceFromBottom = distanceFromBottom + windowHeight * 0.8 // 距离窗口底部10%的距离
+        window.scrollTo({ top: windowHeight - targetDistanceFromBottom, behavior: "smooth" })
+    }
+})
+const updateTimeIndex = () => {
+    // Update the 'currentindex' based on the video's currentTime
+    // 根据视频的 currentTime 更新 'currentindex'
+    const currentTime = videoRef.value.currentTime
+    currentindex.value = subtitles.findIndex((subtitle) => {
+        return currentTime >= subtitle.start && currentTime <= subtitle.start + subtitle.duration
+    })
+}
+// 监听视频播放时间，更新当前播放的字幕
+watchEffect(() => {
+    if (videoRef.value) {
+        videoRef.value.addEventListener('timeupdate', updateTimeIndex)
+    }
+})
+
+// 更改播放状态
+const playAudio = () => {
+    console.log("playAudio")
+    //@ts-ignore
+    if (videoRef.value?.paused) {
+        videoRef.value?.play()
+    } else {
+        //  @ts-ignore
+        videoRef.value?.pause()
+    }
+}
+// 快捷键监听
+const Quick = (e: any) => {
+    // 如果用户按下的是空格键
+    if (e.code === "Space") {
+        playAudio()
+        e.preventDefault(); // 阻止默认行为
+    } else if (e.code === "ArrowLeft") {
+        //@ts-ignore
+        if (videoRef.value.currentTime > 5) {
+            //@ts-ignore
+            videoRef.value.currentTime -= 5
+        } else {
+            //@ts-ignore
+            videoRef.value.currentTime = 0
+        }
+        e.preventDefault(); // 阻止默认行为
+    } else if (e.code === "ArrowRight") {
+        //@ts-ignore
+        if (videoRef.value.currentTime + 5 < videoRef.value.duration) {
+            //@ts-ignore
+            videoRef.value.currentTime += 5
+        } else {
+            //@ts-ignore
+            videoRef.value.currentTime = videoRef.value.duration
+        }
+        e.preventDefault(); // 阻止默认行为
+    } else if (e.code === "Enter") {
+        e.preventDefault(); // 阻止默认行为
+        // 根据当前播放的字幕id，对mark取反
+        db.run(`UPDATE subtitles SET mark = NOT mark WHERE id = ${subtitles[currentindex.value].id}`, (err: Error | null) => {
+            if (err) {
+                throw err;
+            }
+            subtitles[currentindex.value].mark = !subtitles[currentindex.value].mark
+        });
+    }
+
+}
+
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', Quick)
+    if (videoRef.value) {
+        videoRef.value.removeEventListener('timeupdate', updateTimeIndex)
+    }
 })
 </script>
