@@ -221,8 +221,6 @@ const Quick = (e: any) => {
     }
 
 }
-
-
 onUnmounted(() => {
     window.removeEventListener('keydown', Quick)
     if (videoRef.value) {

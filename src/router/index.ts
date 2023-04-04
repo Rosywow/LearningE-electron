@@ -13,6 +13,11 @@ const router = createRouter({
       name: 'Video',
       component: () => import('../views/Video.vue')
     },
+    // {
+    //   path: '/export',
+    //   name: 'Export',
+    //   component: () => import('../views/export.vue')
+    // }
   ]
 })
 

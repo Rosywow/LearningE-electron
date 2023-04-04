@@ -5,7 +5,6 @@
         <div>https://youtu.be/FU9fxE1jN5k</div> -->
         <input v-model="videourl" type="text" placeholder="youtube链接">
         <button @click="Download">下载</button>
-        <!-- 当前视频进度条 -->
         <div>{{ video.title }}</div>
         <!-- 显示视频列表 -->
         <div class="videoListWrapper">
@@ -81,7 +80,7 @@ import { onMounted, ref, reactive, onUnmounted } from "vue";
 import { message } from 'ant-design-vue';
 import 'ant-design-vue/es/message/style/css';
 import { useRouter } from 'vue-router';
-import { store } from '../store'
+import { GetYtJson } from '../yt'
 const sqlite3 = require('sqlite3').verbose();
 const youtubedl = require('youtube-dl-exec')
 let videourl = ref('');
@@ -125,6 +124,17 @@ window.addEventListener('keydown', e => {
 // 创建数据库链接
 const db = new sqlite3.Database('My.sqlite3');
 onMounted(() => {
+    // GetYtJson("https://youtu.be/5XheKKZoGnE").then(async (data: any) => {
+    //     console.log("data", data)
+    //     console.log("data.title, data.duration, data.path", data.title, data.duration, data.id)
+    // }).catch((err: any) => {
+    //     console.log("Getyoutube", err)
+    // });
+    // GetYtJson("https://youtu.be/ebKcw99vj_0").then((res: any) => {
+    //     console.log("Getyoutube", res)
+    // }).catch((err: any) => {
+    //     console.log("Getyoutube", err)
+    // });
     console.log("Home mounted");
     // 建立视频表
     db.run(`CREATE TABLE IF NOT EXISTS videos (
@@ -182,17 +192,14 @@ const gotoVideoPage = (item: Video) => {
 }
 
 const Download = async () => {
-    videourl.value = ""
-    console.log("xiazai", videourl.value)
     // 获取视频基本信息
     console.log("----------------------------1.获取视频基本信息")
-    await youtubedl(videourl.value, {
-        dumpSingleJson: true,
-    }).then(async (data: any) => {
+    const path = './video/%(id)s.%(ext)s'
+    GetYtJson(videourl.value, path).then(async (data: any) => {
         console.log("data", data)
         video.title = data.title
         video.duration = data.duration
-        video.path = 'D:/lyric/' + data.id + ".mp4"
+        video.path = './video/' + data.id + ".mp4"
         video.channel = data.channel
         console.log("-----------------------------1.0存储视频信息")
         const ifExist = await storeVideo(video)
@@ -211,34 +218,42 @@ const Download = async () => {
             console.log("----------------------------1.3存储字幕")
             await storeSub()
         }
-    }).catch((err: Error | null) => {
-        console.log("err", err)
-    })
+    }).catch((err: any) => {
+        console.log("Getyoutube", err)
+    });
+    // ---------------------------------------
+    // await youtubedl(videourl.value, {
+    //     dumpSingleJson: true,
+    // }).then(async (data: any) => {
+
+    // }).catch((err: Error | null) => {
+    //     console.log("获取视频基本信息的err:", err)
+    // })
 
 
-    // 下载视频到指定路径
-    console.log("----------------------------2. 下载文件")
-    const promise = youtubedl.exec(videourl.value, {
-        noCheckCertificates: true,
-        noWarnings: true,
-        preferFreeFormats: true,
-        newline: true,
-        addHeader: [
-            'referer:youtube.com',
-            'user-agent:googlebot'
-        ],
-        output: 'D:/lyric/%(id)s.%(ext)s',
-        noPart: true,
-        downloadArchive: "D:/lyric/downloaded.txt", // 记录下载过的部分
-        continue: true,// 如果没下载完就继续下载，下载过的就不在下载
-    })
-        .then((data: any) => {
-            console.log("data:", data)
-        }).catch((err: any) => {
-            console.log("err", err)
-        })
+    // // 下载视频到指定路径
+    // console.log("----------------------------2. 下载文件")
+    // const promise = youtubedl.exec(videourl.value, {
+    //     noCheckCertificates: true,
+    //     noWarnings: true,
+    //     preferFreeFormats: true,
+    //     newline: true,
+    //     addHeader: [
+    //         'referer:youtube.com',
+    //         'user-agent:googlebot'
+    //     ],
+    //     output: 'D:/lyric/%(id)s.%(ext)s',
+    //     noPart: true,
+    //     downloadArchive: "D:/lyric/downloaded.txt", // 记录下载过的部分
+    //     continue: true,// 如果没下载完就继续下载，下载过的就不在下载
+    // })
+    //     .then((data: any) => {
+    //         console.log("data:", data)
+    //     }).catch((err: any) => {
+    //         console.log("下载视频时候的err", err)
+    //     })
 
-    console.log("promise", promise)
+    // console.log("promise", promise)
     // 显示下载进度
     // const logger = require('progress-estimator')()
     // const result = await logger(promise, `Obtaining ${videourl.value}`)
